@@ -140,7 +140,8 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 	}
 	private static final long serialVersionUID = -2939827594066304200L;
 	private static final Charset UTF8 = Charset.forName("utf-8");
-	private static final Path prefFile = Paths.get("pref.json");
+	private static final Path prefFile = Paths
+			.get(System.getProperty("user.home") + File.separator + "snotepref.json");
 	private static byte[] getKey(String pass) {
 		return CryptUtil.standardPasswordToSecretKey(pass, 256).getEncoded();
 	}
@@ -149,6 +150,7 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		return HC256Encryption.decrypt(enc, key);
 	}
 	public static void main(String[] args) {
+		System.out.println(prefFile);
 		Map<String, Object> preferenceMap = null;
 		try {
 			if (!Files.exists(prefFile)) {
