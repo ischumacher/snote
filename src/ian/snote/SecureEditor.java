@@ -51,8 +51,14 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.plaf.nimbus.NimbusLookAndFeel;
+import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyleContext;
+import javax.swing.text.TabSet;
+import javax.swing.text.TabStop;
 
 public class SecureEditor extends JFrame implements ActionListener, DocumentListener {
 	private final class TextPaneTransferHander extends TransferHandler {
@@ -140,8 +146,7 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 	}
 	private static final long serialVersionUID = -2939827594066304200L;
 	private static final Charset UTF8 = Charset.forName("utf-8");
-	private static final Path prefFile = Paths
-			.get(System.getProperty("user.home") + File.separator + "snotepref.json");
+	private static final Path prefFile = Paths.get(System.getProperty("user.home") + File.separator + "snotepref.json");
 	private static byte[] getKey(String pass) {
 		return CryptUtil.standardPasswordToSecretKey(pass, 256).getEncoded();
 	}
@@ -153,14 +158,20 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		System.out.println(prefFile);
 		Map<String, Object> preferenceMap = null;
 		try {
-			if (!Files.exists(prefFile)) {
-				try (InputStream in = SecureEditor.class.getClassLoader().getResourceAsStream("ian/snote/default.json")) {
-					preferenceMap = Json.parseJSON(new String(ByteBufferUtil.toBytes(IOUtil.readInputStream(in)), UTF8));
-				} catch (final IOException e) {
-					e.printStackTrace();
+			try (InputStream in = SecureEditor.class.getClassLoader().getResourceAsStream("ian/snote/default.json")) {
+				preferenceMap = Json.parseJSON(new String(ByteBufferUtil.toBytes(IOUtil.readInputStream(in)), UTF8));
+			} catch (final IOException e) {
+				e.printStackTrace();
+			}
+			Map<String, Object> override;
+			if (Files.exists(prefFile)) {
+				override = Json.parseJSON(new String(Files.readAllBytes(prefFile), UTF8));
+				for (Map.Entry<String, Object> me : preferenceMap.entrySet()) {
+					String key = me.getKey();
+					if (override.containsKey(key)) {
+						preferenceMap.put(key, override.get(key));
+					}
 				}
-			} else {
-				preferenceMap = Json.parseJSON(new String(Files.readAllBytes(prefFile), UTF8));
 			}
 		} catch (final IOException e) {
 			JOptionPane.showMessageDialog(null, "Unable to load preference file " + e.getMessage(), "Start Error",
@@ -222,7 +233,16 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		textPane = new JTextPane();
 		textPane.setFont(getPreferredFont());
 		add(new JScrollPane(textPane), BorderLayout.CENTER);
-		textPane.getDocument().addDocumentListener(this);
+		TabStop[] tabs = new TabStop[20];
+		int charWidth = getFontMetrics(textPane.getFont()).charWidth('W');
+		int tabWidth = Json.getInteger(preferenceMap, "tabSize") * charWidth;
+		for (int i = 0; i < tabs.length; ++i) {
+			tabs[i] = new TabStop(tabWidth * i, TabStop.ALIGN_LEFT, TabStop.LEAD_NONE);
+		}
+		TabSet tabset = new TabSet(tabs);
+		StyleContext sc = StyleContext.getDefaultStyleContext();
+		AttributeSet aset = sc.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.TabSet, tabset);
+		textPane.setParagraphAttributes(aset, false);
 		menu = new JMenuBar();
 		setJMenuBar(menu);
 		buildMenu();
@@ -236,6 +256,7 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		textPane.setDropMode(DropMode.INSERT);
 		final TransferHandler defaultHandler = textPane.getTransferHandler();
 		textPane.setTransferHandler(new TextPaneTransferHander("text", defaultHandler));
+		textPane.getDocument().addDocumentListener(this);
 		setVisible(true);
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowClosingHandler());
@@ -454,11 +475,10 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		}
 		file = null;
 		key = null;
-		textPane.setText("");
-		setTitle("Editor");
+		updateTitle();
 	}
 	private String readFile(File file) {
-		pref.put("lastDir", file.getParentFile().getAbsolutePath());
+		pref.put("lastDir", file.getParentFile().getAbsolutePath().replace('\\', '/'));
 		final String pass = Dialogs.getReadPasswordDialog(this);
 		key = getKey(pass);
 		try {
@@ -514,7 +534,7 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 				file = new File(file.getParentFile(), name + ".enc");
 			}
 			writeToFile(file.toPath(), ByteBuffer.wrap(text.getBytes(UTF8)), key);
-			pref.put("lastDir", file.toPath().getParent().toAbsolutePath().toString());
+			pref.put("lastDir", file.getParentFile().getAbsolutePath().replace('\\', '/'));
 			changed = false;
 			updateTitle();
 		} catch (final IOException e) {
@@ -525,15 +545,15 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 	private void updateTitle() {
 		if (changed) {
 			if (file != null) {
-				setTitle("Editor - " + file.getName() + "*");
+				setTitle("SNote - " + file.getName() + "*");
 			} else {
-				setTitle("Editor *");
+				setTitle("SNote -  New File*");
 			}
 		} else {
 			if (file != null) {
-				setTitle("Editor - " + file.getName());
+				setTitle("SNote - " + file.getName());
 			} else {
-				setTitle("Editor");
+				setTitle("SNote - New File");
 			}
 		}
 	}

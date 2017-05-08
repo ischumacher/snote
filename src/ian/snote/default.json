@@ -2,6 +2,7 @@
 	theme: com.bulenkov.darcula.DarculaLaf,
 	font: Consolas,
 	fontSize: 16,
+	tabSize: 3,
 	width: 1024,
 	height: 768,
 	xpos: -1,
