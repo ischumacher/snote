@@ -53,8 +53,8 @@ public class FindDialog extends JDialog implements ActionListener, KeyListener {
 		dispose();
 	}
 	private void find(String pattern) {
-		int offset = parent.textPane.getCaretPosition();
-		String text = parent.getText().substring(offset);
+		final int offset = parent.textPane.getCaretPosition();
+		final String text = parent.getText().substring(offset);
 		matcher = Pattern.compile(pattern).matcher(text);
 		if (matcher.find()) {
 			parent.textPane.select(offset + matcher.start(), offset + matcher.end());

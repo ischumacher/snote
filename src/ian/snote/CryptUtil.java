@@ -29,42 +29,6 @@ public class CryptUtil {
 	public static void addBouncyCastleProvider() {
 		Security.addProvider(new BouncyCastleProvider());
 	}
-	public static byte[] scramble(SecureRandom sr, byte arr[]) {
-		List<Byte> passIn = new ArrayList<>();
-		for (int i = 0; i < arr.length; ++i) {
-			passIn.add(arr[i]);
-		}
-		List<Byte> mixedList = new ArrayList<>();
-		while (!passIn.isEmpty()) {
-			mixedList.add(passIn.remove(sr.nextInt(passIn.size())));
-		}
-		byte mixed[] = new byte[mixedList.size()];
-		for (int i = 0; i < mixed.length; ++i) {
-			mixed[i] = mixedList.get(i);
-		}
-		return mixed;
-	}
-	// Scramble in a repeatable way
-	public static byte[] deterministicScramble(byte arr[]) {
-		SecureRandom sr;
-		try {
-			sr = SecureRandom.getInstance("SHA1PRNG");
-		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException(e);
-		}
-		sr.setSeed(arr);
-		return scramble(sr, arr);
-	}
-	// Scramble in non-determinstic way
-	public static byte[] randomScramble(byte arr[]) {
-		SecureRandom sr;
-		try {
-			sr = SecureRandom.getInstanceStrong();
-		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException(e);
-		}
-		return scramble(sr, arr);
-	}
 	// 'bytes' must be less than 64
 	public static byte[] customConvertToKey(byte pass[], int bytes) {
 		if (bytes < 0) {
@@ -76,61 +40,66 @@ public class CryptUtil {
 		SecureRandom sr;
 		try {
 			sr = SecureRandom.getInstance("SHA1PRNG");
-		} catch (NoSuchAlgorithmException e) {
+		} catch (final NoSuchAlgorithmException e) {
 			throw new RuntimeException(e);
 		}
 		sr.setSeed(pass);
-		SHA3Digest digest = new SHA3Digest(512);
-		byte pwdb[] = scramble(sr, pass);
+		final SHA3Digest digest = new SHA3Digest(512);
+		final byte pwdb[] = scramble(sr, pass);
 		digest.update(pwdb, 0, pwdb.length);
-		byte hash[] = new byte[64];
+		final byte hash[] = new byte[64];
 		digest.doFinal(hash, 0);
 		if (bytes < 64) {
-			byte key[] = new byte[bytes];
+			final byte key[] = new byte[bytes];
 			System.arraycopy(hash, 0, key, 0, key.length);
 			return key;
 		}
 		return hash;
 	}
-	public static SecretKey standardPasswordToSecretKey(String password, int bitLength) {
-		byte salt[] = new byte[8];
+	// Scramble in a repeatable way
+	public static byte[] deterministicScramble(byte arr[]) {
 		SecureRandom sr;
 		try {
 			sr = SecureRandom.getInstance("SHA1PRNG");
-		} catch (NoSuchAlgorithmException e) {
+		} catch (final NoSuchAlgorithmException e) {
 			throw new RuntimeException(e);
 		}
-		sr.setSeed(password.getBytes(UTF8));
-		sr.nextBytes(salt);
-		SecretKeyFactory factory;
-		try {
-			factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-			KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, bitLength);
-			SecretKey key = factory.generateSecret(spec);
-			return key;
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		sr.setSeed(arr);
+		return scramble(sr, arr);
 	}
 	public static List<String> getAlgorithms() {
 		return getAlgorithms("");
 	}
 	public static List<String> getAlgorithms(String filter) {
-		List<String> list = new ArrayList<>();
+		final List<String> list = new ArrayList<>();
 		try {
-			Provider p[] = Security.getProviders("BC");
+			final Provider p[] = Security.getProviders("BC");
 			for (int i = 0; i < p.length; i++) {
-				for (Enumeration<Object> e = p[i].keys(); e.hasMoreElements();) {
-					String name = e.nextElement().toString();
+				for (final Enumeration<Object> e = p[i].keys(); e.hasMoreElements();) {
+					final String name = e.nextElement().toString();
 					if (name.contains(filter)) {
 						list.add(name);
 					}
 				}
 			}
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			System.out.println(e);
 		}
 		return list;
+	}
+	public static boolean isRestrictedCryptography() {
+		// This simply matches the Oracle JRE, but not OpenJDK.
+		return "Java(TM) SE Runtime Environment".equals(System.getProperty("java.runtime.name"));
+	}
+	// Scramble in non-determinstic way
+	public static byte[] randomScramble(byte arr[]) {
+		SecureRandom sr;
+		try {
+			sr = SecureRandom.getInstanceStrong();
+		} catch (final NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
+		}
+		return scramble(sr, arr);
 	}
 	public static boolean removeCryptographyRestrictions() {
 		if (!isRestrictedCryptography()) {
@@ -168,8 +137,39 @@ public class CryptUtil {
 		}
 		return false;
 	}
-	public static boolean isRestrictedCryptography() {
-		// This simply matches the Oracle JRE, but not OpenJDK.
-		return "Java(TM) SE Runtime Environment".equals(System.getProperty("java.runtime.name"));
+	public static byte[] scramble(SecureRandom sr, byte arr[]) {
+		final List<Byte> passIn = new ArrayList<>();
+		for (int i = 0; i < arr.length; ++i) {
+			passIn.add(arr[i]);
+		}
+		final List<Byte> mixedList = new ArrayList<>();
+		while (!passIn.isEmpty()) {
+			mixedList.add(passIn.remove(sr.nextInt(passIn.size())));
+		}
+		final byte mixed[] = new byte[mixedList.size()];
+		for (int i = 0; i < mixed.length; ++i) {
+			mixed[i] = mixedList.get(i);
+		}
+		return mixed;
+	}
+	public static SecretKey standardPasswordToSecretKey(String password, int bitLength) {
+		final byte salt[] = new byte[8];
+		SecureRandom sr;
+		try {
+			sr = SecureRandom.getInstance("SHA1PRNG");
+		} catch (final NoSuchAlgorithmException e) {
+			throw new RuntimeException(e);
+		}
+		sr.setSeed(password.getBytes(UTF8));
+		sr.nextBytes(salt);
+		SecretKeyFactory factory;
+		try {
+			factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+			final KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, bitLength);
+			final SecretKey key = factory.generateSecret(spec);
+			return key;
+		} catch (final Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 }

@@ -46,6 +46,7 @@ import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
 import javax.swing.TransferHandler;
 import javax.swing.UIManager;
+import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileFilter;
@@ -54,8 +55,95 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 
 public class SecureEditor extends JFrame implements ActionListener, DocumentListener {
+	private final class TextPaneTransferHander extends TransferHandler {
+		private static final long serialVersionUID = 5332200935183708516L;
+		private final TransferHandler defaultHandler;
+		private TextPaneTransferHander(String property, TransferHandler defaultHandler) {
+			super(property);
+			this.defaultHandler = defaultHandler;
+		}
+		@Override
+		public boolean canImport(TransferHandler.TransferSupport support) {
+			if (defaultHandler.canImport(support)) {
+				return true;
+			}
+			if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+				final Transferable tran = support.getTransferable();
+				try {
+					@SuppressWarnings("unchecked")
+					final List<File> list = (List<File>) tran.getTransferData(DataFlavor.javaFileListFlavor);
+					final File file = list.get(0);
+					return file.getName().toLowerCase().endsWith(".enc");
+				} catch (final InvalidDnDOperationException ex) {
+					return true;
+				} catch (UnsupportedFlavorException | IOException e) {
+					e.printStackTrace();
+				}
+				return false;
+			}
+			return false;
+		}
+		@Override
+		public void exportAsDrag(JComponent comp, InputEvent e, int action) {
+			defaultHandler.exportAsDrag(comp, e, action);
+		}
+		@Override
+		public void exportToClipboard(JComponent comp, Clipboard clip, int action) throws IllegalStateException {
+			defaultHandler.exportToClipboard(comp, clip, action);
+		}
+		@Override
+		public boolean importData(TransferHandler.TransferSupport support) {
+			if (defaultHandler.canImport(support)) {
+				defaultHandler.importData(support);
+				return true;
+			}
+			final Transferable tran = support.getTransferable();
+			if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+				try {
+					@SuppressWarnings("unchecked")
+					final List<File> list = (List<File>) tran.getTransferData(DataFlavor.javaFileListFlavor);
+					final File file = list.get(0);
+					if (changed) {
+						checkSave();
+					}
+					textPane.setText(readFile(file));
+					changed = false;
+					updateTitle();
+					return true;
+				} catch (UnsupportedFlavorException | IOException e) {
+					e.printStackTrace();
+					JOptionPane.showMessageDialog(null, e, "Error", JOptionPane.ERROR_MESSAGE);
+				}
+			}
+			return false;
+		}
+	}
+	private final class WindowClosingHandler extends WindowAdapter {
+		@Override
+		public void windowClosing(WindowEvent e) {
+			if (changed) {
+				checkSave();
+			}
+			final Point loc = SecureEditor.this.getLocation();
+			pref.put("xpos", (int) loc.getX());
+			pref.put("ypos", (int) loc.getY());
+			final Dimension dim = SecureEditor.this.getSize();
+			pref.put("width", (int) dim.getWidth());
+			pref.put("height", (int) dim.getHeight());
+			try {
+				Files.write(prefFile, Json.toJSONString(pref).getBytes(UTF8));
+			} catch (final IOException e1) {
+				e1.printStackTrace();
+			}
+			System.exit(0);
+		}
+	}
 	private static final long serialVersionUID = -2939827594066304200L;
 	private static final Charset UTF8 = Charset.forName("utf-8");
+	private static final Path prefFile = Paths.get("pref.json");
+	private static byte[] getKey(String pass) {
+		return CryptUtil.standardPasswordToSecretKey(pass, 256).getEncoded();
+	}
 	private static ByteBuffer loadFromFile(Path path, byte key[]) throws IOException {
 		final ByteBuffer enc = IOUtil.readPath(path);
 		return HC256Encryption.decrypt(enc, key);
@@ -77,25 +165,22 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 					JOptionPane.ERROR_MESSAGE);
 			return;
 		}
-		String theme = Json.getString(preferenceMap, "theme");
+		final String theme = Json.getString(preferenceMap, "theme");
 		try {
 			UIManager.setLookAndFeel(theme);
 		} catch (final Exception e) {
 			System.out.println("No theme " + theme + " found. Using builtin Nimbus theme");
 			try {
 				UIManager.setLookAndFeel(NimbusLookAndFeel.class.getCanonicalName());
-			} catch (Exception ex) {
+			} catch (final Exception ex) {
 				ex.printStackTrace();
 			}
 		}
-		SecureEditor se = new SecureEditor(preferenceMap);
+		final SecureEditor se = new SecureEditor(preferenceMap);
 		if (args.length > 0) {
 			se.file = new File(args[0]);
 			se.load();
 		}
-	}
-	private static byte[] getKey(String pass) {
-		return CryptUtil.standardPasswordToSecretKey(pass, 256).getEncoded();
 	}
 	private static void writeToFile(Path path, ByteBuffer data, byte key[]) throws IOException {
 		final ByteBuffer enc = HC256Encryption.encrypt(data, key);
@@ -114,8 +199,7 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 	private boolean changed = false;
 	private File file;
 	private final Set<String> fontSet = new TreeSet<>();
-	private Map<String, Object> pref;
-	private static final Path prefFile = Paths.get("pref.json");
+	private final Map<String, Object> pref;
 	private byte[] key;
 	public SecureEditor(Map<String, Object> preferenceMap) {
 		super("SNote");
@@ -148,87 +232,11 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		}
 		textPane.setDragEnabled(true);
 		textPane.setDropMode(DropMode.INSERT);
-		TransferHandler defaultHandler = textPane.getTransferHandler();
-		textPane.setTransferHandler(new TransferHandler("text") {
-			private static final long serialVersionUID = 5332200935183708516L;
-			@Override
-			public boolean canImport(TransferHandler.TransferSupport support) {
-				if (defaultHandler.canImport(support)) {
-					return true;
-				}
-				if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-					Transferable tran = support.getTransferable();
-					try {
-						@SuppressWarnings("unchecked")
-						List<File> list = (List<File>) tran.getTransferData(DataFlavor.javaFileListFlavor);
-						File file = list.get(0);
-						return file.getName().toLowerCase().endsWith(".enc");
-					} catch (InvalidDnDOperationException ex) {
-						return true;
-					} catch (UnsupportedFlavorException | IOException e) {
-						e.printStackTrace();
-					}
-					return false;
-				}
-				return false;
-			}
-			@Override
-			public void exportToClipboard(JComponent comp, Clipboard clip, int action) throws IllegalStateException {
-				defaultHandler.exportToClipboard(comp, clip, action);
-			}
-			@Override
-			public void exportAsDrag(JComponent comp, InputEvent e, int action) {
-				defaultHandler.exportAsDrag(comp, e, action);
-			}
-			@Override
-			public boolean importData(TransferHandler.TransferSupport support) {
-				if (defaultHandler.canImport(support)) {
-					defaultHandler.importData(support);
-					return true;
-				}
-				Transferable tran = support.getTransferable();
-				if (support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-					try {
-						@SuppressWarnings("unchecked")
-						List<File> list = (List<File>) tran.getTransferData(DataFlavor.javaFileListFlavor);
-						File file = list.get(0);
-						if (changed) {
-							checkSave();
-						}
-						textPane.setText(readFile(file));
-						changed = false;
-						updateTitle();
-						return true;
-					} catch (UnsupportedFlavorException | IOException e) {
-						e.printStackTrace();
-						JOptionPane.showMessageDialog(null, e, "Error", JOptionPane.ERROR_MESSAGE);
-					}
-				}
-				return false;
-			}
-		});
+		final TransferHandler defaultHandler = textPane.getTransferHandler();
+		textPane.setTransferHandler(new TextPaneTransferHander("text", defaultHandler));
 		setVisible(true);
-		setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-		addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowClosing(WindowEvent e) {
-				if (changed) {
-					checkSave();
-				}
-				final Point loc = SecureEditor.this.getLocation();
-				pref.put("xpos", (int) loc.getX());
-				pref.put("ypos", (int) loc.getY());
-				final Dimension dim = SecureEditor.this.getSize();
-				pref.put("width", (int) dim.getWidth());
-				pref.put("height", (int) dim.getHeight());
-				try {
-					Files.write(prefFile, Json.toJSONString(pref).getBytes(UTF8));
-				} catch (final IOException e1) {
-					e1.printStackTrace();
-				}
-				System.exit(0);
-			}
-		});
+		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+		addWindowListener(new WindowClosingHandler());
 	}
 	@Override
 	public void actionPerformed(ActionEvent e) {
@@ -333,27 +341,6 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		buildFileMenu();
 		buildEditMenu();
 	}
-	public String getText() {
-		Document doc = textPane.getDocument();
-		try {
-			return doc.getText(0, doc.getLength());
-		} catch (BadLocationException e) {
-			e.printStackTrace();
-		}
-		return "";
-	}
-	public String getText(int off, int length) {
-		Document doc = textPane.getDocument();
-		if (off + length > doc.getLength()) {
-			length = doc.getLength() - off;
-		}
-		try {
-			return doc.getText(off, length);
-		} catch (BadLocationException e) {
-			e.printStackTrace();
-		}
-		return "";
-	}
 	@Override
 	public void changedUpdate(DocumentEvent e) {
 		if (!changed) {
@@ -383,6 +370,27 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 			fontName = "Monospaced";
 		}
 		return new Font(fontName, Font.PLAIN, 18);
+	}
+	public String getText() {
+		final Document doc = textPane.getDocument();
+		try {
+			return doc.getText(0, doc.getLength());
+		} catch (final BadLocationException e) {
+			e.printStackTrace();
+		}
+		return "";
+	}
+	public String getText(int off, int length) {
+		final Document doc = textPane.getDocument();
+		if (off + length > doc.getLength()) {
+			length = doc.getLength() - off;
+		}
+		try {
+			return doc.getText(off, length);
+		} catch (final BadLocationException e) {
+			e.printStackTrace();
+		}
+		return "";
 	}
 	@Override
 	public void insertUpdate(DocumentEvent e) {
@@ -446,7 +454,7 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 	}
 	private String readFile(File file) {
 		pref.put("lastDir", file.getParentFile().getAbsolutePath());
-		String pass = Dialogs.getReadPasswordDialog(this);
+		final String pass = Dialogs.getReadPasswordDialog(this);
 		key = getKey(pass);
 		try {
 			final ByteBuffer text = loadFromFile(file.toPath(), key);
@@ -489,10 +497,14 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 			dialog.setDialogTitle("Save");
 		}
 		if (key == null) {
-			String pass = Dialogs.getCreatePasswordDialog(this);
+			final String pass = Dialogs.getCreatePasswordDialog(this);
 			key = getKey(pass);
 		}
 		try {
+			if (!file.getName().toLowerCase().endsWith(".enc")) {
+				String name = file.getName();
+				file = new File(file.getParentFile(), name + ".enc");
+			}
 			writeToFile(file.toPath(), ByteBuffer.wrap(text.getBytes(UTF8)), key);
 			pref.put("lastDir", file.toPath().getParent().toAbsolutePath().toString());
 			changed = false;

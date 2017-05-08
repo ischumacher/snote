@@ -51,13 +51,8 @@ public class IOUtil {
 	public static ByteBuffer readPath(Path p) throws IOException {
 		return ByteBuffer.wrap(Files.readAllBytes(p));
 	}
-	public static void writeFully(WritableByteChannel ch, ByteBuffer buf) throws IOException {
-		while (buf.hasRemaining()) {
-			ch.write(buf);
-		}
-	}
 	public static String toString(Reader r) throws IOException {
-		StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder();
 		final char ch[] = new char[8192];
 		int read;
 		while ((read = r.read(ch)) > -1) {
@@ -65,5 +60,10 @@ public class IOUtil {
 		}
 		r.close();
 		return sb.toString();
+	}
+	public static void writeFully(WritableByteChannel ch, ByteBuffer buf) throws IOException {
+		while (buf.hasRemaining()) {
+			ch.write(buf);
+		}
 	}
 }

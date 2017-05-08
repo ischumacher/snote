@@ -35,10 +35,9 @@ public class Dialogs {
 		panel.add(lab2);
 		panel.add(confirm);
 		final String[] options = new String[] { "OK" };
-		JOptionPane jop = new JOptionPane(panel, JOptionPane.PLAIN_MESSAGE, JOptionPane.NO_OPTION, null, options,
+		final JOptionPane jop = new JOptionPane(panel, JOptionPane.PLAIN_MESSAGE, JOptionPane.NO_OPTION, null, options,
 				options[0]);
-
-		JDialog dialog = jop.createDialog(parent, "Create Password");
+		final JDialog dialog = jop.createDialog(parent, "Create Password");
 		dialog.addComponentListener(new ComponentAdapter() {
 			@Override
 			public void componentShown(ComponentEvent e) {
@@ -63,15 +62,15 @@ public class Dialogs {
 		return new String(passStr);
 	}
 	public static String getReadPasswordDialog(Component parent) {
-		JPanel panel = new JPanel(new GridLayout(2, 1));
-		JPasswordField jpf = new JPasswordField(25);
+		final JPanel panel = new JPanel(new GridLayout(2, 1));
+		final JPasswordField jpf = new JPasswordField(25);
 		final JLabel lab1 = new JLabel("Password:");
 		panel.add(lab1);
 		panel.add(jpf);
 		final String[] options = new String[] { "OK" };
-		JOptionPane jop = new JOptionPane(panel, JOptionPane.PLAIN_MESSAGE, JOptionPane.NO_OPTION, null, options,
+		final JOptionPane jop = new JOptionPane(panel, JOptionPane.PLAIN_MESSAGE, JOptionPane.NO_OPTION, null, options,
 				options[0]);
-		JDialog dialog = jop.createDialog(parent, "Enter Password");
+		final JDialog dialog = jop.createDialog(parent, "Enter Password");
 		dialog.addComponentListener(new ComponentAdapter() {
 			@Override
 			public void componentShown(ComponentEvent e) {
