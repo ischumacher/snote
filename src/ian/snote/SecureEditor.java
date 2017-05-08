@@ -413,6 +413,9 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 			dialog.setFileFilter(new FileFilter() {
 				@Override
 				public boolean accept(File f) {
+					if (f.isDirectory()) {
+						return true;
+					}
 					return f.getName().toLowerCase().endsWith(".enc");
 				}
 				@Override
@@ -479,6 +482,9 @@ public class SecureEditor extends JFrame implements ActionListener, DocumentList
 		dialog.setFileFilter(new FileFilter() {
 			@Override
 			public boolean accept(File f) {
+				if (f.isDirectory()) {
+					return true;
+				}
 				return f.getName().toLowerCase().endsWith(".enc");
 			}
 			@Override
