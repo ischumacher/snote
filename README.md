@@ -3,7 +3,7 @@
 SNote is a secure notebook GUI application written in Java (Swing) and using 256 bit encryption.
 
 It reads and writes encrypted text files. It uses the HC-256 stream encryption described here
-[http://www.ecrypt.eu.org/stream/p3ciphers/hc/hc256_p3.pdf]. HC-256 has been extensively study
+[http://www.ecrypt.eu.org/stream/p3ciphers/hc/hc256_p3.pdf]. HC-256 has been extensively studied
 and so far no flaws or weaknesses have been found.
 
 The HC-256 encryption is implemented by Bouncy Castle [http://bouncycastle.org] and the Bouncy
